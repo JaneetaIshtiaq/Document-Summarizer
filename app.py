@@ -58,13 +58,25 @@ if 'min_length' not in st.session_state:
 def load_model():
     """Load T5 model and tokenizer"""
     try:
-        model_path = "Model/T5-small/"
-        tokenizer = T5Tokenizer.from_pretrained(model_path)
-        model = T5ForConditionalGeneration.from_pretrained(model_path)
+        # Use online model instead of local path for deployment
+        model_name = "t5-small"  # This will download automatically
+        tokenizer = T5Tokenizer.from_pretrained(model_name)
+        model = T5ForConditionalGeneration.from_pretrained(model_name)
+        st.success("✅ Model loaded successfully!")
         return tokenizer, model
     except Exception as e:
         st.error(f"Error loading model: {str(e)}")
-        return None, None
+        st.info("Trying alternative model...")
+        try:
+            # Alternative model
+            model_name = "mrm8488/t5-small-finetuned-summarize-news"
+            tokenizer = T5Tokenizer.from_pretrained(model_name)
+            model = T5ForConditionalGeneration.from_pretrained(model_name)
+            st.success("✅ Alternative model loaded successfully!")
+            return tokenizer, model
+        except Exception as e2:
+            st.error(f"Failed to load any model: {str(e2)}")
+            return None, None
 
 def extract_text_from_pdf(file):
     """Extract text from PDF file"""
@@ -139,11 +151,11 @@ def main():
     st.markdown('<p class="sub-header">Upload your document, get a summary, and listen to it in audio!</p>', unsafe_allow_html=True)
     
     # Load model
-    with st.spinner("Loading model..."):
+    with st.spinner("Loading AI model... This may take a few seconds."):
         tokenizer, model = load_model()
     
     if tokenizer is None or model is None:
-        st.error("Model could not be loaded. Please check the model path.")
+        st.error("❌ Model could not be loaded. Please check the console for errors.")
         return
     
     # Sidebar for settings
@@ -224,11 +236,13 @@ def main():
                     st.success(f"✅ File successfully read! ({len(input_text)} characters)")
                     with st.expander("Extracted Text Preview"):
                         st.text(input_text[:500] + "..." if len(input_text) > 500 else input_text)
+                else:
+                    st.error("❌ Could not extract text from the file.")
         
         # Generate summary button
         if st.button("🚀 Generate Summary", type="primary", use_container_width=True):
             if input_text and len(input_text.strip()) > 50:
-                with st.spinner("Generating summary..."):
+                with st.spinner("Generating summary... This may take a few seconds."):
                     summary = generate_summary(
                         input_text,
                         tokenizer,
@@ -247,6 +261,8 @@ def main():
                                 st.session_state.audio_bytes = audio_bytes
                         
                         st.success("✅ Summary and audio generated successfully!")
+                    else:
+                        st.error("❌ Failed to generate summary.")
             else:
                 st.warning("⚠️ Please enter at least 50 characters of text.")
     
@@ -262,14 +278,15 @@ def main():
             )
             
             # Statistics
-            col_a, col_b, col_c = st.columns(3)
-            with col_a:
-                st.metric("Original Length", len(input_text.split()) if input_text else 0)
-            with col_b:
-                st.metric("Summary Length", len(st.session_state.summary.split()))
-            with col_c:
-                compression = round((1 - len(st.session_state.summary.split()) / len(input_text.split())) * 100, 1) if input_text else 0
-                st.metric("Compression", f"{compression}%")
+            if input_text:
+                col_a, col_b, col_c = st.columns(3)
+                with col_a:
+                    st.metric("Original Length", f"{len(input_text.split())} words")
+                with col_b:
+                    st.metric("Summary Length", f"{len(st.session_state.summary.split())} words")
+                with col_c:
+                    compression = round((1 - len(st.session_state.summary.split()) / len(input_text.split())) * 100, 1)
+                    st.metric("Compression", f"{compression}%")
             
             # Audio player
             if st.session_state.audio_bytes:
@@ -281,7 +298,8 @@ def main():
                     label="⬇️ Download Audio",
                     data=st.session_state.audio_bytes,
                     file_name="summary_audio.mp3",
-                    mime="audio/mp3"
+                    mime="audio/mp3",
+                    use_container_width=True
                 )
             
             # Download button for summary text
@@ -289,7 +307,8 @@ def main():
                 label="⬇️ Download Summary Text",
                 data=st.session_state.summary,
                 file_name="summary.txt",
-                mime="text/plain"
+                mime="text/plain",
+                use_container_width=True
             )
             
             # Clear button
