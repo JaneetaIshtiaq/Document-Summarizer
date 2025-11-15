@@ -58,7 +58,7 @@ if 'min_length' not in st.session_state:
 def load_model():
     """Load T5 model and tokenizer"""
     try:
-        model_path = "Model/T5-small/"
+        model_path = "t5-small
         tokenizer = T5Tokenizer.from_pretrained(model_path)
         model = T5ForConditionalGeneration.from_pretrained(model_path)
         return tokenizer, model
